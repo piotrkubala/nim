@@ -143,6 +143,26 @@ impl NimGame {
     pub fn add_default_heap(&mut self) {
         self.heaps.push(self.default_heap.clone());
     }
+    
+    pub fn add_random_heap(&mut self) {
+        let size = self.default_heap.size;
+        let half_size = size / 2;
+        
+        let first_random_count = rand::random::<u32>() % half_size;
+        let second_random_count = rand::random::<u32>() % half_size;
+        let third_random_count = if size % 2 == 0 {
+            0
+        } else {
+            rand::random::<u32>() % 2
+        };
+        
+        let heap = NimHeap::new(
+            size,
+            first_random_count + second_random_count + third_random_count
+        );
+        
+        self.heaps.push(heap);
+    }
 
     pub fn remove_last_heap(&mut self) {
         self.heaps.pop();

@@ -20,7 +20,9 @@ pub struct GameSettings {
     pub window_width: u32,
     pub window_height: u32,
     pub microseconds_per_frame: u64,
-    pub microseconds_per_ai_move: u64
+    pub microseconds_per_ai_move: u64,
+    pub heaps_count: u32,
+    pub max_stones_per_heap: u32
 }
 
 pub struct MouseState {
@@ -102,15 +104,16 @@ impl Game {
             .into_canvas()
             .build()
             .map_err(|e| e.to_string())?;
+        
+        let heaps_count = settings.heaps_count;
+        let max_stones_per_heap = settings.max_stones_per_heap;
 
-        let default_heap = NimHeap::new(15, 10);
+        let default_heap = NimHeap::new(max_stones_per_heap, 10);
         let mut nim_game = NimGame::new(default_heap);
 
-        nim_game.add_default_heap();
-        nim_game.add_default_heap();
-        nim_game.add_default_heap();
-        nim_game.add_default_heap();
-        nim_game.add_default_heap();
+        for _ in 0..heaps_count {
+            nim_game.add_random_heap();
+        }
         
         let players =
             vec![(Player::One, PlayerType::Human), (Player::Two, PlayerType::Computer)]
