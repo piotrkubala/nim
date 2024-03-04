@@ -1,8 +1,8 @@
 use std::cmp::min;
-use sdl2::mouse;
 use sdl2::pixels::Color;
-use sdl2::rect::Rect;
+use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
+use crate::game::system::MouseState;
 
 pub struct NimHeap {
     size: u32,
@@ -10,7 +10,8 @@ pub struct NimHeap {
     corner_x: i32,
     corner_y: i32,
     stone_width: u32,
-    stone_height: u32
+    stone_height: u32,
+    area_rectangle: Rect,
 }
 
 impl NimHeap {
@@ -22,13 +23,16 @@ impl NimHeap {
             corner_y: 0,
             stone_width: 1,
             stone_height: 1,
+            area_rectangle: Rect::new(0, 0, 1, 1),
         }
     }
 
     fn get_nth_stone_rect(&self, n: usize) -> Rect {
+        let empty_slots_count = self.size - self.count;
+        
         let x = self.corner_x;
-        let y = self.corner_y + (n as u32 * self.stone_height) as i32;
-
+        let y = self.corner_y + ((empty_slots_count + n as u32) * self.stone_height) as i32;
+        
         Rect::new(x, y, self.stone_width, self.stone_height)
     }
 
@@ -36,17 +40,34 @@ impl NimHeap {
         self.corner_x = area_rectangle.x();
         self.corner_y = area_rectangle.y();
         self.stone_width = area_rectangle.width();
-        self.stone_height = (area_rectangle.height() as f64 / stone_height) as u32;
+        self.stone_height = stone_height as u32;
+        self.area_rectangle = area_rectangle;
     }
 
-    fn draw(&self, canvas: &mut WindowCanvas) -> Result<(), String> {
+    fn draw(&self, canvas: &mut WindowCanvas, mouse_state: &MouseState) -> Result<(), String> {
+        let mouse_point = mouse_state.point;
+        
+        let colour_white = Color::RGB(255, 255, 255);
         let colour_not_hovered = Color::RGB(100, 100, 100);
         let colour_hovered = Color::RGB(200, 100, 100);
 
-        let mut colour = colour_not_hovered;
+        let mut colour = if self.area_rectangle.contains_point(mouse_point) { 
+            colour_hovered 
+        } else {
+            colour_not_hovered
+        };
 
         for i in 0..self.count {
+            let stone_rect = self.get_nth_stone_rect(i as usize);
+            
+            canvas.set_draw_color(colour);
+            canvas.fill_rect(stone_rect)?;
+            canvas.set_draw_color(colour_white);
+            canvas.draw_rect(stone_rect)?;
 
+            if stone_rect.contains_point(mouse_point) {
+                colour = colour_not_hovered;
+            }
         }
 
         Ok(())
@@ -62,6 +83,7 @@ impl Clone for NimHeap {
             corner_y: self.corner_y,
             stone_width: self.stone_width,
             stone_height: self.stone_height,
+            area_rectangle: self.area_rectangle,
         }
     }
 }
@@ -123,7 +145,7 @@ impl NimGame {
         self.heaps.iter().all(|heap| heap.count == 0)
     }
 
-    pub fn draw_board(&mut self, canvas: &mut WindowCanvas) -> Result<(), String> {
+    pub fn draw_board(&mut self, canvas: &mut WindowCanvas, mouse_state: &MouseState) -> Result<(), String> {
         let margin_top = 100;
 
         let window_size = canvas.output_size()?;
@@ -136,7 +158,7 @@ impl NimGame {
         let half_margin_between_heaps = margin_between_heaps * 0.5;
 
         let count_of_stones = self.heaps.iter()
-            .map(|heap| heap.count as usize).max().unwrap_or(1);
+            .map(|heap| heap.size as usize).max().unwrap_or(1);
 
         let heap_width_with_margin = game_area_width / self.heaps.len() as f64 - margin_between_heaps;
         let heap_height = game_area_height;
@@ -156,7 +178,7 @@ impl NimGame {
             canvas.draw_rect(rectangle)?;
 
             heap.set_heap_sizes(rectangle, stone_height);
-            heap.draw(canvas)?;
+            heap.draw(canvas, mouse_state)?;
         }
 
         Ok(())
