@@ -11,7 +11,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
         microseconds_per_frame: 1_000_000 / 60
     };
     let mut game = game::system::Game::new(game_settings)?;
-    
+
     game.run()?;
 
     Ok(())

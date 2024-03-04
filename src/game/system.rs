@@ -5,6 +5,7 @@ use sdl2::pixels::Color;
 use sdl2::render::WindowCanvas;
 
 use std::time::{Duration, Instant};
+use super::{NimGame, NimHeap, NimMove, Player};
 
 enum GameEvent {
     Quit,
@@ -20,7 +21,8 @@ pub struct GameSettings {
 pub struct Game {
     sdl_context: Sdl,
     canvas: WindowCanvas,
-    settings: GameSettings
+    settings: GameSettings,
+    nim_game: NimGame,
 }
 
 impl Game {
@@ -37,11 +39,19 @@ impl Game {
             .into_canvas()
             .build()
             .map_err(|e| e.to_string())?;
+        
+        let default_heap = NimHeap::new(15, 10);
+        let mut nim_game = NimGame::new(default_heap);
+
+        nim_game.add_default_heap();
+        nim_game.add_default_heap();
+        nim_game.add_default_heap();
 
         Ok(Game {
             sdl_context,
             canvas,
-            settings
+            settings,
+            nim_game
         })
     }
     
@@ -58,7 +68,7 @@ impl Game {
                 }
             }
             
-            self.draw_frame();
+            self.draw_frame()?;
             self.wait_to_next_frame(start_time);
         }
         
@@ -73,19 +83,23 @@ impl Game {
         }
     }
     
-    fn draw_frame(&mut self) {
-        self.canvas.set_draw_color(Color::RGB(0, 255, 255));
+    fn draw_frame(&mut self) -> Result<(), String> {
+        self.canvas.set_draw_color(Color::RGB(255, 0, 255));
         self.canvas.clear();
+        self.nim_game.draw_board(&mut self.canvas)?;
+        
         self.canvas.present();
+        
+        Ok(())
     }
     
     fn wait_to_next_frame(&self, start_time: Instant) {
         let elapsed_time = start_time.elapsed();
-        let elapsed_micros = elapsed_time.as_micros() as u64;
-        let remaining_micros = self.settings.microseconds_per_frame - elapsed_micros;
+        let elapsed_micros = elapsed_time.as_micros() as i64;
+        let remaining_micros = self.settings.microseconds_per_frame as i64 - elapsed_micros;
         
         if remaining_micros > 0 {
-            let remaining_duration = Duration::from_micros(remaining_micros);
+            let remaining_duration = Duration::from_micros(remaining_micros as u64);
             ::std::thread::sleep(remaining_duration);
         }
     }
