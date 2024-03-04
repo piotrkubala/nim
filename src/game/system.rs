@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::iter::Map;
 use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -6,7 +8,7 @@ use sdl2::render::WindowCanvas;
 
 use std::time::{Duration, Instant};
 use sdl2::rect::Point;
-use super::{NimGame, NimHeap, NimMove, Player};
+use super::{NimGame, NimHeap, NimMove};
 
 enum GameEvent {
     Quit,
@@ -35,13 +37,34 @@ impl Clone for MouseState {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum Player {
+    One,
+    Two,
+}
+
+impl Player {
+    pub fn next(&self) -> Player {
+        match self {
+            Player::One => Player::Two,
+            Player::Two => Player::One,
+        }
+    }
+}
+
+pub enum PlayerType {
+    Human,
+    Computer
+}
+
 pub struct Game {
     sdl_context: Sdl,
     canvas: WindowCanvas,
     settings: GameSettings,
     nim_game: NimGame,
     previous_mouse_state: MouseState,
-    current_mouse_state: MouseState
+    current_mouse_state: MouseState,
+    players: HashMap<Player, PlayerType>
 }
 
 impl Game {
@@ -66,6 +89,11 @@ impl Game {
         nim_game.add_default_heap();
         nim_game.add_default_heap();
         
+        let players =
+            vec![(Player::One, PlayerType::Human), (Player::Two, PlayerType::Computer)]
+            .into_iter()
+            .collect::<HashMap<Player, PlayerType>>();
+        
         let current_mouse_state = MouseState {
             point: Point::new(0, 0),
             left_button: false,
@@ -80,7 +108,8 @@ impl Game {
             settings,
             nim_game,
             previous_mouse_state,
-            current_mouse_state
+            current_mouse_state,
+            players
         })
     }
 
@@ -104,6 +133,19 @@ impl Game {
         Ok(())
     }
     
+    fn handle_player_move(&mut self) {
+        let player_to_move = self.nim_game.get_player_to_move();
+        
+        if let Some(PlayerType::Human) = self.players.get(player_to_move) {
+            let point = self.current_mouse_state.point;
+            let nim_move_option = self.nim_game.prepare_player_move(point);
+            
+            if let Some(nim_move) = nim_move_option {
+                self.nim_game.make_move(nim_move);
+            }
+        }
+    }
+    
     fn move_mouse_states(&mut self) {
         self.previous_mouse_state = self.current_mouse_state.clone();
     }
@@ -112,6 +154,10 @@ impl Game {
         if let Event::MouseMotion { x, y, .. } = event {
             self.current_mouse_state.point = Point::new(*x, *y);
         }
+    }
+    
+    fn handle_left_click_up(&mut self) {
+        self.handle_player_move();
     }
     
     fn handle_potential_mouse_button(&mut self, event: &Event) {
@@ -129,7 +175,10 @@ impl Game {
                     },
                     Event::MouseButtonUp { mouse_btn, .. } => {
                         match mouse_btn {
-                            sdl2::mouse::MouseButton::Left => self.current_mouse_state.left_button = false,
+                            sdl2::mouse::MouseButton::Left => {
+                                self.current_mouse_state.left_button = false;
+                                self.handle_left_click_up();
+                            },
                             sdl2::mouse::MouseButton::Right => self.current_mouse_state.right_button = false,
                             _ => {}
                         }

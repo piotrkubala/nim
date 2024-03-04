@@ -1,3 +1,4 @@
 mod nim_game;
+mod nim_ai;
 
-pub use nim_game::{NimGame, NimHeap, NimMove, Player};
+pub use nim_game::{NimGame, NimHeap, NimMove};

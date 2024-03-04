@@ -2,7 +2,7 @@ use std::cmp::min;
 use sdl2::pixels::Color;
 use sdl2::rect::{Point, Rect};
 use sdl2::render::WindowCanvas;
-use crate::game::system::MouseState;
+use crate::game::system::{MouseState, Player};
 
 pub struct NimHeap {
     size: u32,
@@ -42,6 +42,30 @@ impl NimHeap {
         self.stone_width = area_rectangle.width();
         self.stone_height = stone_height as u32;
         self.area_rectangle = area_rectangle;
+    }
+    
+    fn prepare_move(&self, heap_index: usize, point: Point) -> Option<NimMove> {
+        let mut new_count = self.count;
+        
+        for i in 0..self.count {
+            let stone_rect = self.get_nth_stone_rect(i as usize);
+            
+            if stone_rect.contains_point(point) {
+                new_count = self.count - i - 1;
+                break;
+            }
+        }
+        
+        if new_count == self.count {
+            return None;
+        }
+        
+        let count_to_remove = self.count - new_count;
+        
+        Some(NimMove {
+            heap_index,
+            count_to_remove,
+        })
     }
 
     fn draw(&self, canvas: &mut WindowCanvas, mouse_state: &MouseState) -> Result<(), String> {
@@ -88,11 +112,6 @@ impl Clone for NimHeap {
     }
 }
 
-pub enum Player {
-    One,
-    Two,
-}
-
 pub struct NimMove {
     heap_index: usize,
     count_to_remove: u32,
@@ -124,6 +143,10 @@ impl NimGame {
     pub fn remove_last_heap(&mut self) {
         self.heaps.pop();
     }
+    
+    pub fn switch_player(&mut self) {
+        self.player = self.player.next();
+    }
 
     pub fn make_move(&mut self, nim_move: NimMove) -> bool {
         if nim_move.heap_index >= self.heaps.len() || nim_move.count_to_remove < 1 {
@@ -137,8 +160,13 @@ impl NimGame {
         }
 
         heap.count -= nim_move.count_to_remove;
+        self.switch_player();
 
         true
+    }
+    
+    pub fn get_player_to_move(&self) -> &Player {
+        &self.player
     }
 
     pub fn is_game_over(&self) -> bool {
@@ -182,5 +210,15 @@ impl NimGame {
         }
 
         Ok(())
+    }
+    
+    pub fn prepare_player_move(&self, point: Point) -> Option<NimMove> {
+        for (i, heap) in self.heaps.iter().enumerate() {
+            if let Some(nim_move) = heap.prepare_move(i, point) {
+                return Some(nim_move);
+            }
+        }
+        
+        None
     }
 }
