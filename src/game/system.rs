@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::iter::Map;
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use sdl2::Sdl;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -18,7 +19,8 @@ enum GameEvent {
 pub struct GameSettings {
     pub window_width: u32,
     pub window_height: u32,
-    pub microseconds_per_frame: u64
+    pub microseconds_per_frame: u64,
+    pub microseconds_per_ai_move: u64
 }
 
 pub struct MouseState {
@@ -52,9 +54,27 @@ impl Player {
     }
 }
 
+impl Display for Player {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Player::One => write!(f, "Player 1"),
+            Player::Two => write!(f, "Player 2"),
+        }
+    }
+}
+
 pub enum PlayerType {
     Human,
     Computer
+}
+
+impl Display for PlayerType {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            PlayerType::Human => write!(f, "Human"),
+            PlayerType::Computer => write!(f, "Computer"),
+        }
+    }
 }
 
 pub struct Game {
@@ -64,7 +84,8 @@ pub struct Game {
     nim_game: NimGame,
     previous_mouse_state: MouseState,
     current_mouse_state: MouseState,
-    players: HashMap<Player, PlayerType>
+    players: HashMap<Player, PlayerType>,
+    last_human_move_time: Option<Instant>
 }
 
 impl Game {
@@ -85,6 +106,8 @@ impl Game {
         let default_heap = NimHeap::new(15, 10);
         let mut nim_game = NimGame::new(default_heap);
 
+        nim_game.add_default_heap();
+        nim_game.add_default_heap();
         nim_game.add_default_heap();
         nim_game.add_default_heap();
         nim_game.add_default_heap();
@@ -109,7 +132,8 @@ impl Game {
             nim_game,
             previous_mouse_state,
             current_mouse_state,
-            players
+            players,
+            last_human_move_time: None
         })
     }
 
@@ -125,12 +149,47 @@ impl Game {
                     GameEvent::Other(_) => {}
                 }
             }
-
+        
+            self.handle_ai_players();
             self.draw_frame()?;
+            
+            if self.handle_game_ending() {
+                break 'running;
+            }
+            
             self.wait_to_next_frame(start_time);
         }
 
         Ok(())
+    }
+    
+    fn handle_game_ending(&mut self) -> bool {
+        if self.nim_game.is_game_over() {
+            let player_to_move = self.nim_game.get_player_to_move();
+            let winner = player_to_move.next();
+            
+            println!("Game over!");
+            println!("{} wins!", winner);
+
+            if let Some(winner_type) = self.players.get(&winner) {
+                println!("This player is a {}", winner_type);
+            }
+            
+            return true;
+        }
+        
+        false
+    }
+    
+    fn handle_ai_players(&mut self) {
+        if let Some(last_human_move_time) = self.last_human_move_time {
+            let elapsed_time = last_human_move_time.elapsed();
+            let elapsed_micros = elapsed_time.as_micros() as u64;
+            
+            if elapsed_micros >= self.settings.microseconds_per_ai_move {
+                self.handle_ai_move();
+            }
+        }
     }
     
     fn handle_player_move(&mut self) {
@@ -142,6 +201,20 @@ impl Game {
             
             if let Some(nim_move) = nim_move_option {
                 self.nim_game.make_move(nim_move);
+                self.last_human_move_time = Some(Instant::now());
+            }
+        }
+    }
+    
+    fn handle_ai_move(&mut self) {
+        let player_to_move = self.nim_game.get_player_to_move();
+        
+        if let Some(PlayerType::Computer) = self.players.get(player_to_move) {
+            let nim_move_option = self.nim_game.prepare_ai_move();
+            
+            if let Some(nim_move) = nim_move_option {
+                self.nim_game.make_move(nim_move);
+                self.last_human_move_time = None;
             }
         }
     }

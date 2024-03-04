@@ -8,7 +8,8 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     let game_settings = game::system::GameSettings {
         window_width: 800,
         window_height: 600,
-        microseconds_per_frame: 1_000_000 / 60
+        microseconds_per_frame: 1_000_000 / 60,
+        microseconds_per_ai_move: 1_000_000 / 2
     };
     let mut game = game::system::Game::new(game_settings)?;
 

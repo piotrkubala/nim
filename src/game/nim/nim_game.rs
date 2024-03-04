@@ -44,6 +44,10 @@ impl NimHeap {
         self.area_rectangle = area_rectangle;
     }
     
+    pub fn get_count(&self) -> u32 {
+        self.count
+    }
+    
     fn prepare_move(&self, heap_index: usize, point: Point) -> Option<NimMove> {
         let mut new_count = self.count;
         
@@ -113,8 +117,8 @@ impl Clone for NimHeap {
 }
 
 pub struct NimMove {
-    heap_index: usize,
-    count_to_remove: u32,
+    pub heap_index: usize,
+    pub count_to_remove: u32,
 }
 
 pub struct NimGame {
@@ -220,5 +224,33 @@ impl NimGame {
         }
         
         None
+    }
+    
+    pub fn prepare_ai_move(&self) -> Option<NimMove> {
+        let all_counts_xor =
+            self.heaps.iter().fold(0, |acc, heap| acc ^ heap.get_count());
+        let get_all_suitable_indices =
+            self.heaps.iter().enumerate().filter_map(|(index, heap)| {
+                let count = heap.get_count();
+                if count > (count ^ all_counts_xor) {
+                    Some(index)
+                } else {
+                    None
+                }
+            }).collect::<Vec<usize>>();
+        if get_all_suitable_indices.is_empty() {
+            return None;
+        }
+
+        let random_vector_index = rand::random::<usize>() % get_all_suitable_indices.len();
+        let heap_index = get_all_suitable_indices[random_vector_index];
+        let heap_count = self.heaps[heap_index].get_count();
+
+        let count_to_remove = heap_count - (heap_count ^ all_counts_xor);
+
+        Some(NimMove {
+            heap_index,
+            count_to_remove
+        })
     }
 }
