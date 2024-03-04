@@ -42,6 +42,11 @@ impl NimHeap {
         self.stone_width = area_rectangle.width();
         self.stone_height = stone_height as u32;
         self.area_rectangle = area_rectangle;
+        
+        let last_y = self.corner_y + self.size as i32 * self.stone_height as i32;
+        let difference = self.area_rectangle.y + self.area_rectangle.height() as i32 - last_y;
+        
+        self.corner_y += difference;
     }
     
     pub fn get_count(&self) -> u32 {
@@ -212,10 +217,17 @@ impl NimGame {
         let count_of_stones = self.heaps.iter()
             .map(|heap| heap.size as usize).max().unwrap_or(1);
 
-        let heap_width_with_margin = game_area_width / self.heaps.len() as f64 - margin_between_heaps;
+        let heap_width_with_margin = (game_area_width - half_margin_between_heaps) / self.heaps.len() as f64 - half_margin_between_heaps;
         let heap_height = game_area_height;
 
         let stone_height = heap_height / count_of_stones as f64;
+        
+        let game_area_rect = Rect::new(
+            margin_x as i32,
+            margin_top as i32,
+            game_area_width as u32,
+            game_area_height as u32
+        );
 
         for (i, heap) in self.heaps.iter_mut().enumerate() {
             let x = i as f64 * (heap_width_with_margin + half_margin_between_heaps)
@@ -232,6 +244,9 @@ impl NimGame {
             heap.set_heap_sizes(rectangle, stone_height);
             heap.draw(canvas, mouse_state)?;
         }
+
+        canvas.set_draw_color(Color::RGB(255, 255, 255));
+        canvas.draw_rect(game_area_rect)?;
 
         Ok(())
     }
