@@ -9,7 +9,7 @@ use sdl2::render::WindowCanvas;
 
 use std::time::{Duration, Instant};
 use sdl2::rect::Point;
-use super::{NimGame, NimHeap, NimMove};
+use super::{NimGame, NimHeap};
 
 enum GameEvent {
     Quit,
@@ -22,7 +22,8 @@ pub struct GameSettings {
     pub microseconds_per_frame: u64,
     pub microseconds_per_ai_move: u64,
     pub heaps_count: u32,
-    pub max_stones_per_heap: u32
+    pub max_stones_per_heap: u32,
+    pub target_colour_change_time: Duration
 }
 
 pub struct MouseState {
@@ -87,7 +88,9 @@ pub struct Game {
     previous_mouse_state: MouseState,
     current_mouse_state: MouseState,
     players: HashMap<Player, PlayerType>,
-    last_human_move_time: Option<Instant>
+    last_human_move_time: Option<Instant>,
+    last_frame_time: Instant,
+    background_colour: Color
 }
 
 impl Game {
@@ -95,9 +98,11 @@ impl Game {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
 
-        let window = video_subsystem.window("Nim - the game", 800, 600)
-            .position_centered()
-            .build()
+        let window = video_subsystem.window(
+            "Nim - the game",
+            settings.window_width,
+            settings.window_height
+        ).position_centered().build()
             .map_err(|e| e.to_string())?;
 
         let canvas = window
@@ -136,7 +141,9 @@ impl Game {
             previous_mouse_state,
             current_mouse_state,
             players,
-            last_human_move_time: None
+            last_human_move_time: None,
+            last_frame_time: Instant::now(),
+            background_colour: Color::RGB(0, 0, 155)
         })
     }
 
@@ -278,10 +285,62 @@ impl Game {
             }
         }
     }
+    
+    fn draw_background(&mut self) {
+        fn subtract_colour(colour1: Color, colour2: Color) -> (f64, f64, f64) {
+            let r1 = colour1.r as f64;
+            let g1 = colour1.g as f64;
+            let b1 = colour1.b as f64;
+            
+            let r2 = colour2.r as f64;
+            let g2 = colour2.g as f64;
+            let b2 = colour2.b as f64;
+            
+            (r1 - r2, g1 - g2, b1 - b2)
+        }
+        
+        fn multiply_colour((r, g, b): (f64, f64, f64), factor: f64) -> (f64, f64, f64) {
+            (r * factor, g * factor, b * factor)
+        }
+        
+        fn add_colour(colour1: Color, (r, g, b): (f64, f64, f64)) -> Color {
+            let r = (colour1.r as f64 + r) as u8;
+            let g = (colour1.g as f64 + g) as u8;
+            let b = (colour1.b as f64 + b) as u8;
+            
+            Color::RGB(r, g, b)
+        }
+        
+        let first_player_background_colour = Color::RGB(100, 155, 0);
+        let second_player_background_colour = Color::RGB(155, 100, 0);
+        let current_player = self.nim_game.get_player_to_move();
+        
+        let time_since_last_frame = self.last_frame_time.elapsed();
+        let target_colour_change_time = self.settings.target_colour_change_time;
+        
+        let time_ratio = time_since_last_frame.as_secs_f64() / target_colour_change_time.as_secs_f64();
+                
+        self.background_colour =
+            add_colour(
+                self.background_colour,
+                multiply_colour(
+                    subtract_colour(
+                        match current_player {
+                            Player::One => first_player_background_colour,
+                            Player::Two => second_player_background_colour
+                        },
+                        self.background_colour
+                    ),
+                    time_ratio
+                )
+            );
+        
+        self.canvas.set_draw_color(self.background_colour);
+        self.canvas.clear();
+    }
 
     fn draw_frame(&mut self) -> Result<(), String> {
-        self.canvas.set_draw_color(Color::RGB(255, 0, 255));
-        self.canvas.clear();
+        self.draw_background();
         self.nim_game.draw_board(&mut self.canvas, &self.current_mouse_state)?;
 
         self.canvas.present();
@@ -289,7 +348,9 @@ impl Game {
         Ok(())
     }
 
-    fn wait_to_next_frame(&self, start_time: Instant) {
+    fn wait_to_next_frame(&mut self, start_time: Instant) {
+        self.last_frame_time = Instant::now();
+        
         let elapsed_time = start_time.elapsed();
         let elapsed_micros = elapsed_time.as_micros() as i64;
         let remaining_micros = self.settings.microseconds_per_frame as i64 - elapsed_micros;

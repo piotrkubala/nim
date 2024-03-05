@@ -141,10 +141,6 @@ impl NimGame {
         }
     }
 
-    pub fn add_heap(&mut self, heap: NimHeap) {
-        self.heaps.push(heap);
-    }
-
     pub fn add_default_heap(&mut self) {
         self.heaps.push(self.default_heap.clone());
     }
@@ -261,6 +257,31 @@ impl NimGame {
         None
     }
     
+    pub fn prepare_random_move(&self) -> Option<NimMove> {
+        let all_non_zero_indices = self.heaps.iter().enumerate().filter_map(|(index, heap)| {
+            if heap.get_count() > 0 {
+                Some(index)
+            } else {
+                None
+            }
+        }).collect::<Vec<usize>>();
+        
+        if all_non_zero_indices.is_empty() {
+            return None;
+        }
+        
+        let random_vector_index = rand::random::<usize>() % all_non_zero_indices.len();
+        let heap_index = all_non_zero_indices[random_vector_index];
+        
+        let heap_count = self.heaps[heap_index].get_count();
+        let count_to_remove = rand::random::<u32>() % heap_count + 1;
+        
+        Some(NimMove {
+            heap_index,
+            count_to_remove
+        })
+    }
+    
     pub fn prepare_ai_move(&self) -> Option<NimMove> {
         let all_counts_xor =
             self.heaps.iter().fold(0, |acc, heap| acc ^ heap.get_count());
@@ -274,7 +295,7 @@ impl NimGame {
                 }
             }).collect::<Vec<usize>>();
         if get_all_suitable_indices.is_empty() {
-            return None;
+            return self.prepare_random_move();
         }
 
         let random_vector_index = rand::random::<usize>() % get_all_suitable_indices.len();
